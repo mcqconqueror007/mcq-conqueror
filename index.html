@@ -332,7 +332,7 @@
             <button id="btnThemeToggleMobile" type="button" class="lg:hidden p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Toggle dark mode" title="Toggle theme">
               <i data-lucide="moon" class="w-4 h-4 theme-icon"></i>
             </button>
-            <button id="btnAdminToggle" type="button" class="lg:hidden px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-100 transition whitespace-nowrap flex items-center gap-1">
+            <button id="btnAdminToggle" type="button" class="hidden">
               <i data-lucide="shield" class="w-3.5 h-3.5"></i>
               <span class="admin-btn-label">Admin</span>
             </button>
@@ -377,7 +377,7 @@
             <button id="btnThemeToggle" type="button" class="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition" aria-label="Toggle dark mode" title="Toggle Light / Dark theme">
               <i data-lucide="moon" class="w-4 h-4 theme-icon"></i>
             </button>
-            <button id="btnAdminToggleDesktop" type="button" class="hidden lg:flex px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100 transition whitespace-nowrap items-center gap-1.5">
+            <button id="btnAdminToggleDesktop" type="button" class="hidden">
               <i data-lucide="shield" class="w-3.5 h-3.5"></i>
               <span class="admin-btn-label">Admin</span>
             </button>
@@ -557,7 +557,7 @@
       adminAuthMode: 'local', // local | supabase
       adminEmail: '',
       adminJwt: '',
-      adminPasscode: 'RAID2026',
+      adminPasscodeHash: 'bacaceb3f89a9e3c',
       sessions: [], // completed sessions across all subjects
       userProfile: {
         displayName: 'You',
@@ -572,6 +572,19 @@
     let quiz = null;
     let quizTimerInterval = null;
     let activeCharts = [];
+
+    function hashPasscode(str) {
+      const s = 'MCQ_CONQ_SALT::' + String(str || '').trim().toUpperCase();
+      let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+      for (let i = 0; i < s.length; i++) {
+        const c = s.charCodeAt(i);
+        h1 = Math.imul(h1 ^ c, 2654435761);
+        h2 = Math.imul(h2 ^ c, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return ((h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0'));
+    }
 
     function loadState() {
       try {
@@ -628,7 +641,7 @@
           activeSubjectId: state.activeSubjectId,
           sessions: state.sessions,
           userProfile: state.userProfile,
-          adminPasscode: state.adminPasscode,
+          adminPasscodeHash: state.adminPasscodeHash,
           bookmarks: state.bookmarks,
           theme: state.theme,
           instantFeedback: state.instantFeedback,
@@ -1468,8 +1481,7 @@
           b.className = `${visCls} px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition whitespace-nowrap items-center gap-1.5`;
           if (lbl) lbl.textContent = btnId === 'btnAdminToggle' ? 'Admin On' : 'Admin Active';
         } else {
-          b.className = `${visCls} px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-100 transition whitespace-nowrap items-center gap-1.5`;
-          if (lbl) lbl.textContent = btnId === 'btnAdminToggle' ? 'Admin' : 'Admin Login';
+          b.className = 'hidden';
         }
       });
     }
@@ -3376,7 +3388,7 @@ create policy "Admin-only write MCQs" on questions for all
             e.preventDefault();
             const np = document.getElementById('newAdminPassInput').value.trim();
             if (np.length < 4) return;
-            state.adminPasscode = np;
+            state.adminPasscodeHash = hashPasscode(np);
             saveState();
             showToast('Local Admin passcode updated.', 'success');
             closeModal();
@@ -3442,7 +3454,7 @@ create policy "Admin-only write MCQs" on questions for all
           e.preventDefault();
           const val = document.getElementById('adminPasscodeInput').value.trim();
           const errEl = document.getElementById('localAdminErr');
-          if (val.toUpperCase() === state.adminPasscode.toUpperCase()) {
+          if (hashPasscode(val) === state.adminPasscodeHash) {
             state.isAdmin = true;
             state.adminAuthMode = 'local';
             closeModal();
@@ -4157,10 +4169,23 @@ create policy "Admin-only write MCQs" on questions for all
       if (e.target.id === 'modalOverlay') closeModal();
     });
 
+    let _logoTapCount = 0, _logoTapTimer = null;
     document.getElementById('btnBrandHome')?.addEventListener('click', () => {
+      _logoTapCount++;
+      clearTimeout(_logoTapTimer);
+      if (_logoTapCount >= 5) {
+        _logoTapCount = 0;
+        openAdminModal();
+        return;
+      }
+      _logoTapTimer = setTimeout(() => { _logoTapCount = 0; }, 2500);
       state.activeNav = 'dashboard';
       render();
     });
+    if (window.location.hash === '#raid-admin') {
+      try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (_) {}
+      setTimeout(() => openAdminModal(), 150);
+    }
     document.getElementById('btnThemeToggle')?.addEventListener('click', toggleTheme);
     document.getElementById('btnThemeToggleMobile')?.addEventListener('click', toggleTheme);
     document.getElementById('btnSmartSearch')?.addEventListener('click', openSmartSearchModal);
@@ -4168,6 +4193,11 @@ create policy "Admin-only write MCQs" on questions for all
 
     // Keyboard shortcuts: Ctrl/Cmd+K for Smart Search, Escape to close modal, 1-4 / Arrows in Practice
     document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        openAdminModal();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         openSmartSearchModal();
