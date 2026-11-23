@@ -325,7 +325,6 @@
 
           <div class="flex items-center gap-1.5 shrink-0">
             <label for="globalSubjectSelect" class="sr-only">Active Subject</label>
-            <select id="globalSubjectSelect" class="text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200/70 text-slate-800 rounded-lg px-2.5 py-1.5 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[125px] sm:max-w-[200px] truncate"></select>
             <button id="btnSmartSearchMobile" type="button" class="lg:hidden p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" aria-label="Smart Search" title="Smart Search">
               <i data-lucide="search" class="w-4 h-4"></i>
             </button>
@@ -4136,18 +4135,7 @@ create policy "Admin-only write MCQs" on questions for all
     // =========================================================================
     // 7. GLOBAL INITIALIZATION
     // =========================================================================
-    document.getElementById('globalSubjectSelect').addEventListener('change', (e) => {
-      if (quiz) {
-        flushCurrentQuestionTime();
-        stopQuizTimer();
-        quiz = null;
-      }
-      state.activeSubjectId = e.target.value;
-      state.addMcqSubjectId = e.target.value;
-      state.selectedSessionId = null;
-      saveState();
-      render();
-    });
+
 
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
